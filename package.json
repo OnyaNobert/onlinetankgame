@@ -1,0 +1,24 @@
+{
+  "name": "online-player-game",
+  "version": "1.0.0",
+  "description": "online shooting game",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "nodemon app.js"
+  },
+  "keywords": [
+    "online",
+    "shooting",
+    "game",
+    "multiplayer"
+  ],
+  "author": "NewtonDev",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^5.2.1",
+    "http": "^0.0.1-security",
+    "nodemon": "^3.1.14",
+    "socket.io": "^4.8.3"
+  }
+}

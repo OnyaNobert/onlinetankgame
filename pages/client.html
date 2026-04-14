@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=0.5, maximum-scale=0.5, user-scalable=no">
+    <title>2P PvP Game</title>
+
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+        }
+
+        canvas {
+            border: 1px solid black;
+            touch-action: none;
+        }
+
+        /* SHOOT BUTTON */
+        #shootBtn {
+            position: absolute;
+            bottom: 40px;
+            right: 40px;
+            width: 90px;
+            height: 90px;
+            border-radius: 50%;
+            background: red;
+            color: white;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            user-select: none;
+        }
+    </style>
+</head>
+<body>
+
+<canvas id="canvas" width="600" height="600"></canvas>
+<div id="shootBtn">SHOOT</div>
+
+<script src="/socket.io/socket.io.js"></script>
+
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const socket = io();
+
+let state = {};
+let keys = {};
+let touchDir = null;
+var bulletlimiter = 0
+
+// -------------------- STATE --------------------
+socket.on('state', (s) => {
+    state = s;
+});
+
+// -------------------- PC INPUT --------------------
+window.addEventListener('keydown', (e) => {
+    if (e.key === 'a') keys.a = true;
+    if (e.key === 'd') keys.d = true;
+    if (e.key === 'w') keys.w = true;
+    if (e.key === 's') keys.s = true;
+
+    socket.emit('input', keys);
+
+    if (e.key === 'Enter') {      
+        if(bulletlimiter%4 == 0){socket.emit('shoot');}
+        bulletlimiter++
+    }
+});
+
+window.addEventListener('keyup', (e) => {
+    if (e.key === 'a') keys.a = false;
+    if (e.key === 'd') keys.d = false;
+    if (e.key === 'w') keys.w = false;
+    if (e.key === 's') keys.s = false;
+    if(e.key === 'Enter') bulletlimiter = 0;
+
+    socket.emit('input', keys);
+});
+
+// -------------------- TOUCH MOVEMENT --------------------
+function handleTouch(x, y) {
+    const w = canvas.width;
+    const h = canvas.height;
+
+    const cx = w / 2;
+    const cy = h / 2;
+
+    const dx = x - cx;
+    const dy = y - cy;
+
+    const deadZone = 60;
+
+    // CENTER = NO MOVEMENT HERE (shoot is button now)
+    if (Math.abs(dx) < deadZone && Math.abs(dy) < deadZone) {
+        return null;
+    }
+
+    if (Math.abs(dx) > Math.abs(dy)) {
+        return dx < 0 ? 'left' : 'right';
+    } else {
+        return dy < 0 ? 'up' : 'down';
+    }
+}
+
+// touch movement
+canvas.addEventListener('touchstart', (e) => {
+    const rect = canvas.getBoundingClientRect();
+
+    const x = e.touches[0].clientX - rect.left;
+    const y = e.touches[0].clientY - rect.top;
+
+    touchDir = handleTouch(x, y);
+});
+
+canvas.addEventListener('touchend', () => {
+    touchDir = null;
+});
+
+// -------------------- HOLD MOVEMENT LOOP --------------------
+setInterval(() => {
+    if (!touchDir) return;
+
+    let input = { a: false, d: false, w: false, s: false };
+
+    if (touchDir === 'left') input.a = true;
+    if (touchDir === 'right') input.d = true;
+    if (touchDir === 'up') input.w = true;
+    if (touchDir === 'down') input.s = true;
+
+    socket.emit('input', input);
+
+}, 50);
+
+// -------------------- SHOOT BUTTON (MOBILE) --------------------
+const shootBtn = document.getElementById('shootBtn');
+
+shootBtn.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    socket.emit('shoot');
+});
+
+// optional mouse support too
+shootBtn.addEventListener('mousedown', () => {
+    socket.emit('shoot');
+});
+
+// -------------------- RENDER --------------------
+function draw() {
+    ctx.clearRect(0, 0, 600, 600);
+
+    // players
+    var index = 0
+    for (let id in state.players) {
+        let colourset = ['red','blue']
+        const p = state.players[id];
+        index++
+       const size = 30;
+
+
+ctx.save();
+ctx.translate(p.x, p.y);
+
+// ---------------- BODY ----------------
+ctx.fillStyle = colourset[index % 2];
+ctx.fillRect(-size / 2, -size / 2, size, size);
+
+// ---------------- TURRET / BARREL ----------------
+ctx.fillStyle = "black";
+
+let barrelLength = 20;
+let bx = 0;
+let by = 0;
+
+if (p.dir === "up") {
+    bx = 0; by = -barrelLength;
+}
+if (p.dir === "down") {
+    bx = 0; by = barrelLength;
+}
+if (p.dir === "left") {
+    bx = -barrelLength; by = 0;
+}
+if (p.dir === "right") {
+    bx = barrelLength; by = 0;
+}
+
+// draw barrel line
+ctx.beginPath();
+ctx.moveTo(0, 0);
+ctx.lineTo(bx, by);
+ctx.lineWidth = 4;
+ctx.strokeStyle = "black";
+ctx.stroke();
+
+// barrel tip
+ctx.fillStyle = "black";
+ctx.beginPath();
+ctx.arc(bx, by, 4, 0, Math.PI * 2);
+ctx.fill();
+
+// ---------------- HP ----------------
+ctx.fillStyle = "black";
+ctx.fillText(p.hp, -10, -size / 2 - 5);
+
+ctx.restore();
+    }
+
+    // bullets
+    for (let b of (state.bullets || [])) {
+        ctx.fillStyle = "red";
+        ctx.fillRect(b.x, b.y, 5, 5);
+    }
+
+    requestAnimationFrame(draw);
+}
+
+draw();
+</script>
+
+</body>
+</html>
