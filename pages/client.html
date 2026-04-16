@@ -3,41 +3,485 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=0.5, maximum-scale=0.5, user-scalable=no">
-    <title>2P PvP Game</title>
+    <title>IRON DUEL — 2P Tank Battle</title>
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 
     <style>
+        :root {
+            --olive: #4a5240;
+            --dark-olive: #2a2e22;
+            --gunmetal: #1a1c18;
+            --deep-black: #0d0e0b;
+            --amber: #d4a017;
+            --amber-dim: #8a6810;
+            --red-alert: #cc2200;
+            --steel: #6b7060;
+            --panel-bg: #1e2118;
+            --rivet: #3a3f30;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
         body {
-            margin: 0;
+            background: var(--deep-black);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            font-family: 'Share Tech Mono', monospace;
             overflow: hidden;
+            cursor: crosshair;
         }
 
-        canvas {
-            border: 1px solid black;
-            touch-action: none;
+        /* Subtle noise texture overlay */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+            pointer-events: none;
+            z-index: 100;
+            opacity: 0.35;
         }
 
-        /* SHOOT BUTTON */
-        #shootBtn {
+        /* ===== HEADER ===== */
+        #header {
+            display: flex;
+            align-items: center;
+            gap: 18px;
+            margin-bottom: 10px;
+            position: relative;
+        }
+
+        #header::before, #header::after {
+            content: '◆◆◆';
+            color: var(--amber-dim);
+            font-size: 11px;
+            letter-spacing: 4px;
+        }
+
+        #title {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 42px;
+            color: var(--amber);
+            letter-spacing: 10px;
+            text-shadow: 0 0 20px rgba(212,160,23,0.4), 0 2px 0 rgba(0,0,0,0.8);
+            line-height: 1;
+        }
+
+        #subtitle {
+            text-align: center;
+            color: var(--steel);
+            font-size: 10px;
+            letter-spacing: 6px;
+            text-transform: uppercase;
+            margin-bottom: 12px;
+        }
+
+        /* ===== MAIN WRAPPER ===== */
+        #game-wrapper {
+            display: flex;
+            align-items: stretch;
+            gap: 0;
+            position: relative;
+        }
+
+        /* ===== SIDE PANELS ===== */
+        .side-panel {
+            width: 110px;
+            background: var(--panel-bg);
+            border: 1px solid var(--rivet);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 14px 8px;
+            gap: 12px;
+            position: relative;
+        }
+
+        .side-panel::before {
+            content: '';
             position: absolute;
-            bottom: 40px;
-            right: 40px;
-            width: 90px;
-            height: 90px;
-            border-radius: 50%;
-            background: red;
-            color: white;
-            font-size: 18px;
+            top: 8px; left: 8px; right: 8px; bottom: 8px;
+            border: 1px solid rgba(255,255,255,0.04);
+            pointer-events: none;
+        }
+
+        /* Corner rivets */
+        .side-panel::after {
+            content: '●';
+            position: absolute;
+            top: 4px; left: 4px;
+            color: var(--rivet);
+            font-size: 7px;
+        }
+
+        .panel-label {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 13px;
+            letter-spacing: 3px;
+            color: var(--amber-dim);
+            border-bottom: 1px solid var(--rivet);
+            width: 100%;
+            text-align: center;
+            padding-bottom: 6px;
+        }
+
+        .player-badge {
+            width: 70px;
+            height: 70px;
+            border: 2px solid;
             display: flex;
             align-items: center;
             justify-content: center;
+            position: relative;
+            clip-path: polygon(10% 0%, 90% 0%, 100% 10%, 100% 90%, 90% 100%, 10% 100%, 0% 90%, 0% 10%);
+        }
+
+        #p1-badge { border-color: #cc3322; background: rgba(204,51,34,0.1); }
+        #p2-badge { border-color: #2255cc; background: rgba(34,85,204,0.1); }
+
+        .badge-tank {
+            font-size: 28px;
+            line-height: 1;
+        }
+
+        .hp-bar-wrap {
+            width: 100%;
+        }
+
+        .hp-label {
+            font-size: 9px;
+            color: var(--steel);
+            letter-spacing: 2px;
+            margin-bottom: 4px;
+            text-align: center;
+        }
+
+        .hp-bar {
+            height: 8px;
+            background: var(--gunmetal);
+            border: 1px solid var(--rivet);
+            width: 100%;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hp-fill {
+            height: 100%;
+            transition: width 0.3s ease;
+            position: relative;
+        }
+
+        #p1-hp-fill { background: linear-gradient(90deg, #991100, #ff4422); }
+        #p2-hp-fill { background: linear-gradient(90deg, #112299, #2244ff); }
+
+        .hp-fill::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(180deg, rgba(255,255,255,0.2) 0%, transparent 100%);
+        }
+
+        .stat-row {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            font-size: 9px;
+            color: var(--steel);
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+            padding-bottom: 3px;
+        }
+
+        .stat-val {
+            color: var(--amber-dim);
+        }
+
+        /* ===== CANVAS FRAME ===== */
+        #canvas-frame {
+            position: relative;
+            border: 3px solid var(--olive);
+            box-shadow:
+                0 0 0 1px var(--rivet),
+                inset 0 0 40px rgba(0,0,0,0.6),
+                0 0 40px rgba(0,0,0,0.8);
+        }
+
+        /* Corner brackets */
+        #canvas-frame::before, #canvas-frame::after {
+            content: '';
+            position: absolute;
+            width: 20px; height: 20px;
+            border-color: var(--amber);
+            border-style: solid;
+            z-index: 10;
+        }
+        #canvas-frame::before {
+            top: -1px; left: -1px;
+            border-width: 3px 0 0 3px;
+        }
+        #canvas-frame::after {
+            bottom: -1px; right: -1px;
+            border-width: 0 3px 3px 0;
+        }
+
+        #corner-tr, #corner-bl {
+            position: absolute;
+            width: 20px; height: 20px;
+            border-color: var(--amber);
+            border-style: solid;
+            z-index: 10;
+        }
+        #corner-tr { top: -1px; right: -1px; border-width: 3px 3px 0 0; }
+        #corner-bl { bottom: -1px; left: -1px; border-width: 0 0 3px 3px; }
+
+        canvas {
+            display: block;
+            touch-action: none;
+        }
+
+        /* CRT scanline overlay on canvas */
+        #scanlines {
+            position: absolute;
+            inset: 0;
+            background: repeating-linear-gradient(
+                0deg,
+                transparent,
+                transparent 2px,
+                rgba(0,0,0,0.08) 2px,
+                rgba(0,0,0,0.08) 4px
+            );
+            pointer-events: none;
+            z-index: 5;
+        }
+
+        /* Vignette on canvas */
+        #vignette {
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(ellipse at center, transparent 60%, rgba(0,0,0,0.5) 100%);
+            pointer-events: none;
+            z-index: 4;
+        }
+
+        /* ===== SHOOT BUTTON ===== */
+        #shootBtn {
+            position: absolute;
+            bottom: 30px;
+            right: 30px;
+            width: 80px;
+            height: 80px;
+            z-index: 20;
+            cursor: pointer;
             user-select: none;
         }
+
+        #shootBtn-inner {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background: radial-gradient(circle at 35% 35%, #cc3300, #660000);
+            border: 3px solid #aa2200;
+            box-shadow:
+                0 0 0 2px rgba(255,100,50,0.2),
+                0 4px 15px rgba(0,0,0,0.6),
+                inset 0 1px 0 rgba(255,255,255,0.15);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            gap: 2px;
+            transition: transform 0.08s, box-shadow 0.08s;
+        }
+
+        #shootBtn:active #shootBtn-inner {
+            transform: scale(0.92);
+            box-shadow: 0 0 0 2px rgba(255,150,50,0.5), 0 2px 8px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.1);
+        }
+
+        #shootBtn-inner .btn-icon {
+            font-size: 22px;
+            line-height: 1;
+        }
+
+        #shootBtn-inner .btn-label {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 12px;
+            letter-spacing: 2px;
+            color: rgba(255,200,180,0.9);
+        }
+
+        /* ===== STATUS BAR ===== */
+        #status-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 820px;
+            margin-top: 8px;
+            padding: 5px 12px;
+            background: var(--panel-bg);
+            border: 1px solid var(--rivet);
+            font-size: 9px;
+            color: var(--steel);
+            letter-spacing: 2px;
+        }
+
+        #status-bar .ping-dot {
+            display: inline-block;
+            width: 6px; height: 6px;
+            border-radius: 50%;
+            background: #44cc44;
+            margin-right: 5px;
+            animation: blink 2s infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        #controls-hint {
+            text-align: center;
+            color: var(--steel);
+            font-size: 9px;
+            letter-spacing: 3px;
+            margin-top: 8px;
+            opacity: 0.6;
+        }
+
+        /* ===== KILL FEED (top of canvas) ===== */
+        #kill-feed {
+            position: absolute;
+            top: 8px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 15;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            pointer-events: none;
+        }
+
+        .kill-msg {
+            background: rgba(0,0,0,0.7);
+            border: 1px solid var(--amber-dim);
+            padding: 3px 10px;
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 14px;
+            letter-spacing: 3px;
+            color: var(--amber);
+            animation: fadeKill 3s forwards;
+        }
+
+        @keyframes fadeKill {
+            0% { opacity: 0; transform: translateY(-4px); }
+            15% { opacity: 1; transform: translateY(0); }
+            70% { opacity: 1; }
+            100% { opacity: 0; }
+        }
+
+        /* ===== GRID decoration on panels ===== */
+        .panel-grid {
+            width: 90px;
+            height: 90px;
+            opacity: 0.15;
+            background-image:
+                linear-gradient(var(--amber) 1px, transparent 1px),
+                linear-gradient(90deg, var(--amber) 1px, transparent 1px);
+            background-size: 10px 10px;
+        }
+
     </style>
 </head>
 <body>
 
-<canvas id="canvas" width="600" height="600"></canvas>
-<div id="shootBtn">SHOOT</div>
+<div id="header">
+    <div id="title">IRON DUEL</div>
+</div>
+<div id="subtitle">tactical arena · 2-player pvp</div>
+
+<div id="game-wrapper">
+
+    <!-- LEFT PANEL: Player 1 -->
+    <div class="side-panel">
+        <div class="panel-label">P1 — RED</div>
+        <div class="player-badge" id="p1-badge">
+            <span class="badge-tank">🔴</span>
+        </div>
+        <div class="hp-bar-wrap">
+            <div class="hp-label">ARMOR</div>
+            <div class="hp-bar">
+                <div class="hp-fill" id="p1-hp-fill" style="width:100%"></div>
+            </div>
+        </div>
+        <div class="stat-row">
+            <div class="stat-item"><span>KILLS</span><span class="stat-val" id="p1-kills">0</span></div>
+            <div class="stat-item"><span>SHOTS</span><span class="stat-val" id="p1-shots">0</span></div>
+        </div>
+        <div class="panel-grid"></div>
+        <div style="font-size:9px; color:var(--steel); letter-spacing:1px; text-align:center; line-height:1.6;">
+            W A S D<br>MOVE<br>──<br>ENTER<br>FIRE
+        </div>
+    </div>
+
+    <!-- CANVAS AREA -->
+    <div id="canvas-frame">
+        <div id="corner-tr"></div>
+        <div id="corner-bl"></div>
+        <canvas id="canvas" width="600" height="600"></canvas>
+        <div id="scanlines"></div>
+        <div id="vignette"></div>
+        <div id="kill-feed"></div>
+
+        <!-- SHOOT BUTTON (mobile) -->
+        <div id="shootBtn">
+            <div id="shootBtn-inner">
+                <span class="btn-icon">💥</span>
+                <span class="btn-label">FIRE</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- RIGHT PANEL: Player 2 -->
+    <div class="side-panel">
+        <div class="panel-label">P2 — BLU</div>
+        <div class="player-badge" id="p2-badge">
+            <span class="badge-tank">🔵</span>
+        </div>
+        <div class="hp-bar-wrap">
+            <div class="hp-label">ARMOR</div>
+            <div class="hp-bar">
+                <div class="hp-fill" id="p2-hp-fill" style="width:100%"></div>
+            </div>
+        </div>
+        <div class="stat-row">
+            <div class="stat-item"><span>KILLS</span><span class="stat-val" id="p2-kills">0</span></div>
+            <div class="stat-item"><span>SHOTS</span><span class="stat-val" id="p2-shots">0</span></div>
+        </div>
+        <div class="panel-grid"></div>
+        <div style="font-size:9px; color:var(--steel); letter-spacing:1px; text-align:center; line-height:1.6;">
+            ARROWS<br>MOVE<br>──<br>TAP BTN<br>FIRE
+        </div>
+    </div>
+
+</div>
+
+<!-- STATUS BAR -->
+<div id="status-bar">
+    <span><span class="ping-dot"></span>CONNECTED · IRON DUEL SERVER</span>
+    <span id="status-mid">WAITING FOR PLAYERS...</span>
+    <span id="status-time">00:00</span>
+</div>
+
+<div id="controls-hint">WASD / ARROW KEYS TO MOVE &nbsp;·&nbsp; ENTER / TAP TO FIRE</div>
 
 <script src="/socket.io/socket.io.js"></script>
 
@@ -49,170 +493,278 @@ const socket = io();
 let state = {};
 let keys = {};
 let touchDir = null;
-var bulletlimiter = 0
+var bulletlimiter = 0;
+
+// Stats tracking
+let stats = {};
+
+// Game timer
+let gameSeconds = 0;
+setInterval(() => {
+    gameSeconds++;
+    const m = String(Math.floor(gameSeconds / 60)).padStart(2, '0');
+    const s = String(gameSeconds % 60).padStart(2, '0');
+    document.getElementById('status-time').textContent = m + ':' + s;
+}, 1000);
 
 // -------------------- STATE --------------------
 socket.on('state', (s) => {
     state = s;
+    updateHUD(s);
 });
+
+function updateHUD(s) {
+    const ids = Object.keys(s.players || {});
+    ids.forEach((id, i) => {
+        const p = s.players[id];
+        const maxHp = 100;
+        const pct = Math.max(0, Math.min(100, (p.hp / maxHp) * 100));
+        const prefix = i === 0 ? 'p1' : 'p2';
+        const fill = document.getElementById(prefix + '-hp-fill');
+        if (fill) fill.style.width = pct + '%';
+    });
+
+    const count = ids.length;
+    document.getElementById('status-mid').textContent =
+        count === 0 ? 'WAITING FOR PLAYERS...' :
+        count === 1 ? '1 PLAYER CONNECTED — AWAITING OPPONENT' :
+        'BATTLE IN PROGRESS';
+}
 
 // -------------------- PC INPUT --------------------
 window.addEventListener('keydown', (e) => {
-    if (e.key === 'a') keys.a = true;
-    if (e.key === 'd') keys.d = true;
-    if (e.key === 'w') keys.w = true;
-    if (e.key === 's') keys.s = true;
+    if (e.key === 'a' || e.key === 'ArrowLeft') keys.a = true;
+    if (e.key === 'd' || e.key === 'ArrowRight') keys.d = true;
+    if (e.key === 'w' || e.key === 'ArrowUp') keys.w = true;
+    if (e.key === 's' || e.key === 'ArrowDown') keys.s = true;
 
     socket.emit('input', keys);
 
-    if (e.key === 'Enter') {      
-        if(bulletlimiter%4 == 0){socket.emit('shoot');}
-        bulletlimiter++
+    if (e.key === 'Enter' || e.key === ' ') {
+        if (bulletlimiter % 4 === 0) { socket.emit('shoot'); }
+        bulletlimiter++;
     }
 });
 
 window.addEventListener('keyup', (e) => {
-    if (e.key === 'a') keys.a = false;
-    if (e.key === 'd') keys.d = false;
-    if (e.key === 'w') keys.w = false;
-    if (e.key === 's') keys.s = false;
-    if(e.key === 'Enter') bulletlimiter = 0;
+    if (e.key === 'a' || e.key === 'ArrowLeft') keys.a = false;
+    if (e.key === 'd' || e.key === 'ArrowRight') keys.d = false;
+    if (e.key === 'w' || e.key === 'ArrowUp') keys.w = false;
+    if (e.key === 's' || e.key === 'ArrowDown') keys.s = false;
+    if (e.key === 'Enter' || e.key === ' ') bulletlimiter = 0;
 
     socket.emit('input', keys);
 });
 
-// -------------------- TOUCH MOVEMENT --------------------
+// -------------------- TOUCH --------------------
 function handleTouch(x, y) {
-    const w = canvas.width;
-    const h = canvas.height;
-
-    const cx = w / 2;
-    const cy = h / 2;
-
-    const dx = x - cx;
-    const dy = y - cy;
-
+    const cx = canvas.width / 2, cy = canvas.height / 2;
+    const dx = x - cx, dy = y - cy;
     const deadZone = 60;
-
-    // CENTER = NO MOVEMENT HERE (shoot is button now)
-    if (Math.abs(dx) < deadZone && Math.abs(dy) < deadZone) {
-        return null;
-    }
-
-    if (Math.abs(dx) > Math.abs(dy)) {
-        return dx < 0 ? 'left' : 'right';
-    } else {
-        return dy < 0 ? 'up' : 'down';
-    }
+    if (Math.abs(dx) < deadZone && Math.abs(dy) < deadZone) return null;
+    if (Math.abs(dx) > Math.abs(dy)) return dx < 0 ? 'left' : 'right';
+    return dy < 0 ? 'up' : 'down';
 }
 
-// touch movement
 canvas.addEventListener('touchstart', (e) => {
     const rect = canvas.getBoundingClientRect();
-
-    const x = e.touches[0].clientX - rect.left;
-    const y = e.touches[0].clientY - rect.top;
-
-    touchDir = handleTouch(x, y);
+    touchDir = handleTouch(e.touches[0].clientX - rect.left, e.touches[0].clientY - rect.top);
 });
 
-canvas.addEventListener('touchend', () => {
-    touchDir = null;
-});
+canvas.addEventListener('touchend', () => { touchDir = null; });
 
-// -------------------- HOLD MOVEMENT LOOP --------------------
 setInterval(() => {
     if (!touchDir) return;
-
     let input = { a: false, d: false, w: false, s: false };
-
     if (touchDir === 'left') input.a = true;
     if (touchDir === 'right') input.d = true;
     if (touchDir === 'up') input.w = true;
     if (touchDir === 'down') input.s = true;
-
     socket.emit('input', input);
-
 }, 50);
 
-// -------------------- SHOOT BUTTON (MOBILE) --------------------
 const shootBtn = document.getElementById('shootBtn');
-
-shootBtn.addEventListener('touchstart', (e) => {
-    e.preventDefault();
-    socket.emit('shoot');
-});
-
-// optional mouse support too
-shootBtn.addEventListener('mousedown', () => {
-    socket.emit('shoot');
-});
+shootBtn.addEventListener('touchstart', (e) => { e.preventDefault(); socket.emit('shoot'); });
+shootBtn.addEventListener('mousedown', () => { socket.emit('shoot'); });
 
 // -------------------- RENDER --------------------
+// Colour configs per player slot
+const PLAYER_COLORS = [
+    { body: '#8b1a0a', bodyLight: '#cc3322', bodyHighlight: '#ff6655', barrel: '#2a1a18', track: '#3a1a14' },
+    { body: '#0a1a8b', bodyLight: '#2244cc', bodyHighlight: '#5577ff', barrel: '#181a2a', track: '#141a3a' }
+];
+
+function drawTank(ctx, p, colorSet) {
+    const size = 30;
+
+    ctx.save();
+    ctx.translate(p.x, p.y);
+
+    // ── Tracks (shadow rectangles on sides) ──
+    ctx.fillStyle = colorSet.track;
+    ctx.fillRect(-size / 2 - 5, -size / 2 + 2, 6, size - 4);
+    ctx.fillRect(size / 2 - 1, -size / 2 + 2, 6, size - 4);
+
+    // Track details (lines)
+    ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+    ctx.lineWidth = 1;
+    for (let i = -10; i <= 10; i += 5) {
+        ctx.beginPath();
+        ctx.moveTo(-size / 2 - 5, i);
+        ctx.lineTo(-size / 2 + 1, i);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(size / 2 - 1, i);
+        ctx.lineTo(size / 2 + 5, i);
+        ctx.stroke();
+    }
+
+    // ── Hull shadow ──
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.fillRect(-size / 2 + 2, -size / 2 + 2, size, size);
+
+    // ── Hull body ──
+    const grad = ctx.createLinearGradient(-size / 2, -size / 2, size / 2, size / 2);
+    grad.addColorStop(0, colorSet.bodyLight);
+    grad.addColorStop(0.5, colorSet.body);
+    grad.addColorStop(1, colorSet.track);
+    ctx.fillStyle = grad;
+    ctx.fillRect(-size / 2, -size / 2, size, size);
+
+    // Hull highlight
+    ctx.fillStyle = 'rgba(255,255,255,0.07)';
+    ctx.fillRect(-size / 2, -size / 2, size, size / 2);
+
+    // Hull border
+    ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(-size / 2, -size / 2, size, size);
+
+    // ── Turret ──
+    const turretR = 9;
+    const tGrad = ctx.createRadialGradient(-2, -2, 1, 0, 0, turretR + 2);
+    tGrad.addColorStop(0, colorSet.bodyHighlight);
+    tGrad.addColorStop(0.6, colorSet.body);
+    tGrad.addColorStop(1, colorSet.track);
+    ctx.fillStyle = tGrad;
+    ctx.beginPath();
+    ctx.arc(0, 0, turretR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // ── Barrel ──
+    let bx = 0, by = 0;
+    const bLen = 22;
+    if (p.dir === 'up')    { bx = 0;    by = -bLen; }
+    if (p.dir === 'down')  { bx = 0;    by =  bLen; }
+    if (p.dir === 'left')  { bx = -bLen; by = 0;   }
+    if (p.dir === 'right') { bx =  bLen; by = 0;   }
+
+    ctx.lineCap = 'round';
+    ctx.lineWidth = 7;
+    ctx.strokeStyle = colorSet.barrel;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(bx, by);
+    ctx.stroke();
+
+    // barrel highlight
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(bx * 0.85, by * 0.85);
+    ctx.stroke();
+
+    // barrel tip ring
+    ctx.fillStyle = '#111';
+    ctx.beginPath();
+    ctx.arc(bx, by, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    ctx.restore();
+}
+
+function drawBullet(ctx, b) {
+    ctx.save();
+    // glow
+    const grd = ctx.createRadialGradient(b.x + 2.5, b.y + 2.5, 0, b.x + 2.5, b.y + 2.5, 10);
+    grd.addColorStop(0, 'rgba(255,200,50,0.9)');
+    grd.addColorStop(0.4, 'rgba(255,80,0,0.5)');
+    grd.addColorStop(1, 'rgba(255,50,0,0)');
+    ctx.fillStyle = grd;
+    ctx.beginPath();
+    ctx.arc(b.x + 2.5, b.y + 2.5, 10, 0, Math.PI * 2);
+    ctx.fill();
+
+    // core
+    ctx.fillStyle = '#ffee44';
+    ctx.fillRect(b.x, b.y, 5, 5);
+    ctx.restore();
+}
+
+// Ground grid
+function drawGround(ctx) {
+    ctx.fillStyle = '#1a1e14';
+    ctx.fillRect(0, 0, 600, 600);
+
+    // tactical grid
+    ctx.strokeStyle = 'rgba(80,90,60,0.25)';
+    ctx.lineWidth = 0.5;
+    for (let x = 0; x <= 600; x += 40) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, 600);
+        ctx.stroke();
+    }
+    for (let y = 0; y <= 600; y += 40) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(600, y);
+        ctx.stroke();
+    }
+
+    // center crosshair marker
+    ctx.strokeStyle = 'rgba(212,160,23,0.12)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(300, 270); ctx.lineTo(300, 330);
+    ctx.moveTo(270, 300); ctx.lineTo(330, 300);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(300, 300, 30, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // corner coords
+    ctx.fillStyle = 'rgba(212,160,23,0.2)';
+    ctx.font = '9px Share Tech Mono';
+    ctx.fillText('0,0', 4, 10);
+    ctx.fillText('600,0', 555, 10);
+    ctx.fillText('0,600', 4, 596);
+    ctx.fillText('600,600', 547, 596);
+}
+
 function draw() {
     ctx.clearRect(0, 0, 600, 600);
 
+    drawGround(ctx);
+
     // players
-    var index = 0
+    let index = 0;
     for (let id in state.players) {
-        let colourset = ['red','blue']
         const p = state.players[id];
-        index++
-       const size = 30;
-
-
-ctx.save();
-ctx.translate(p.x, p.y);
-
-// ---------------- BODY ----------------
-ctx.fillStyle = colourset[index % 2];
-ctx.fillRect(-size / 2, -size / 2, size, size);
-
-// ---------------- TURRET / BARREL ----------------
-ctx.fillStyle = "black";
-
-let barrelLength = 20;
-let bx = 0;
-let by = 0;
-
-if (p.dir === "up") {
-    bx = 0; by = -barrelLength;
-}
-if (p.dir === "down") {
-    bx = 0; by = barrelLength;
-}
-if (p.dir === "left") {
-    bx = -barrelLength; by = 0;
-}
-if (p.dir === "right") {
-    bx = barrelLength; by = 0;
-}
-
-// draw barrel line
-ctx.beginPath();
-ctx.moveTo(0, 0);
-ctx.lineTo(bx, by);
-ctx.lineWidth = 4;
-ctx.strokeStyle = "black";
-ctx.stroke();
-
-// barrel tip
-ctx.fillStyle = "black";
-ctx.beginPath();
-ctx.arc(bx, by, 4, 0, Math.PI * 2);
-ctx.fill();
-
-// ---------------- HP ----------------
-ctx.fillStyle = "black";
-ctx.fillText(p.hp, -10, -size / 2 - 5);
-
-ctx.restore();
+        drawTank(ctx, p, PLAYER_COLORS[index % 2]);
+        index++;
     }
 
     // bullets
     for (let b of (state.bullets || [])) {
-        ctx.fillStyle = "red";
-        ctx.fillRect(b.x, b.y, 5, 5);
+        drawBullet(ctx, b);
     }
 
     requestAnimationFrame(draw);
